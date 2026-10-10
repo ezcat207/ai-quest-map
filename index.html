@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Quest Map</title>
+<style>
+:root{--bg:#14122b;--card:#201d44;--card2:#2b2759;--ink:#f3f1ff;--mute:#a9a4d6;--a:#ffd166;--b:#06d6a0;--c:#4cc9f0;--d:#f78fb3;--boss:#ff5d5d;--line:#3a3570}
+:root[data-pov="parent"]{--bg:#f6f4ee;--card:#fff;--card2:#efece2;--ink:#26231c;--mute:#6b665a;--a:#b7791f;--b:#2f855a;--c:#2b6cb0;--d:#b83280;--boss:#c53030;--line:#d9d4c3}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"PingFang SC","Noto Sans SC",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+h1{margin:0;font-size:1.7rem}
+.tog{display:flex;gap:6px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border:2px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:999px}
+button.on{background:var(--a);color:#1a1630;border-color:var(--a);font-weight:700}
+.hero{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.xp{height:14px;border-radius:99px;background:var(--card2);overflow:hidden;margin-top:8px}
+.xp>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--b),var(--a));transition:width .4s}
+.world{margin:26px 0 8px;display:flex;align-items:center;gap:10px}
+.world h2{margin:0;font-size:1.25rem}
+.world span{color:var(--mute);font-size:.9rem}
+.path{position:relative;display:grid;gap:12px;padding-left:22px;border-left:4px dashed var(--line)}
+.lvl{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px 14px;position:relative}
+.lvl::before{content:"";position:absolute;left:-33px;top:18px;width:18px;height:18px;border-radius:50%;background:var(--wc);border:3px solid var(--bg)}
+.lvl.done{border-color:var(--b)}
+.lvl.done::before{background:var(--b)}
+.lvl summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.lvl summary::-webkit-details-marker{display:none}
+.tag{font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--mute)}
+.tag.new{background:var(--d);color:#fff}.tag.ready{background:var(--b);color:#fff}.tag.exp{background:var(--boss);color:#fff}
+.id{font-weight:800;color:var(--wc)}
+.title{font-weight:700;flex:1;min-width:150px}
+.boss{margin-left:auto;color:var(--boss);font-weight:700;font-size:.9rem}
+.body{margin-top:10px;display:grid;gap:8px}
+.row{background:var(--card2);border-radius:10px;padding:8px 10px}
+.row b{display:block;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
+.row.bossrow{border-left:5px solid var(--boss)}
+label.def{display:flex;gap:8px;align-items:center;margin-top:4px;font-weight:700}
+input[type=checkbox]{width:20px;height:20px}
+.final{border:3px solid var(--boss);background:var(--card);border-radius:16px;padding:16px;margin:28px 0}
+.note{font-size:.85rem;color:var(--mute);margin-top:24px;border-top:1px solid var(--line);padding-top:12px}
+.only-parent,.only-kid{display:none}
+:root[data-pov="parent"] .only-parent{display:block}
+:root[data-pov="kid"] .only-kid{display:block}
+a{color:var(--c)}
+@media(max-width:560px){h1{font-size:1.35rem}.boss{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1 id="h1"></h1>
+  <div class="tog">
+    <button data-pov="kid" id="pk"></button><button data-pov="parent" id="pp"></button>
+    <button data-lang="en">EN</button><button data-lang="zh">中文</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div id="intro"></div>
+  <div class="xp"><i id="xpbar"></i></div>
+  <div id="xptext" style="margin-top:4px;color:var(--mute);font-size:.9rem"></div>
+</div>
+
+<div id="map"></div>
+
+<div class="final">
+  <h2 id="fh"></h2>
+  <div id="fb"></div>
+  <label class="def"><input type="checkbox" id="fc"> <span id="fl"></span></label>
+</div>
+
+<div class="note" id="note"></div>
+</div>
+
+<script>
+// ---------- DATA ----------
+const WORLDS = {
+ A:{c:"#ffd166",en:"World A · Know Your Tool",zh:"A 世界 · 认识工具",sub:{en:"What AI really is, and how not to get fooled.",zh:"AI 到底是什么，怎么不被它忽悠。"}},
+ B:{c:"#06d6a0",en:"World B · Talk to AI",zh:"B 世界 · 和 AI 对话",sub:{en:"Say what you mean. Break big things into small ones.",zh:"把话说清楚，把大事拆成小事。"}},
+ C:{c:"#4cc9f0",en:"World C · Think with AI",zh:"C 世界 · 和 AI 一起思考",sub:{en:"Get unstuck, check facts, ask great questions.",zh:"卡住时怎么办，怎么核实，怎么提好问题。"}},
+ D:{c:"#f78fb3",en:"World D · Grow with AI",zh:"D 世界 · 借 AI 变强",sub:{en:"Remember more, make real things, be honest about help.",zh:"记得更牢，做出作品，诚实说明 AI 帮了什么。"}},
+ E:{c:"#c77dff",en:"World E · Level-Up (try it, safely)",zh:"E 世界 · 进阶（安全地试）",sub:{en:"Bigger moves. Safety rules first. Failing is fine.",zh:"更大的玩法。先讲安全规则，失败没关系。"}}
+};
+const U = [
+ {id:"U0",w:"A",st:"ready",
+  en:{t:"AI Is a Tool, Not Magic",boss:"The Confident Liar",quest:"Ask AI 3 questions: one easy, one it might get wrong, one where it makes up a story. Which answer did you trust? Why?",loot:"You can say what AI is: a very good guesser of the next word.",tip:"Boss tip: AI sounds sure even when it is wrong. Sure ≠ true.",use:"Ask AI about your favorite book series. Find one thing it got wrong.",par:"Kids treat AI like a person who knows everything.",do:"Ask, 'What did you check?' Don't say 'AI is bad.'"},
+  zh:{t:"AI 是工具，不是魔法",boss:"自信的骗子",quest:"问 AI 三个问题：一个简单的、一个它可能答错的、一个让它编故事的。你最信哪个答案？为什么？",loot:"你能说清 AI 是什么：一个很会猜下一个词的工具。",tip:"打 Boss 提示：AI 就算错了也说得很肯定。肯定 ≠ 正确。",use:"问 AI 你最爱的系列书，找出它答错的一处。",par:"孩子容易把 AI 当成什么都懂的人。",do:"多问'你怎么核实的？'，不要说'AI 不好'。"}},
+ {id:"U1",w:"A",st:"ready",pilot:1,
+  en:{t:"Context Radar + AI Detective",boss:"The Fog",quest:"Before you ask: how much background does AI need? Then play detective on its answer with 5 questions (Is it true? Who says so? Does it make sense? What is missing? Would I bet on it?).",loot:"A 5-question check you can use on anything.",tip:"Boss tip: if you can't answer a detective question, that's the part to check.",use:"Ask AI about a myth from your favorite story. Sort it: real myth / author invented / AI invented.",par:"Kids accept the first answer and complain when it's wrong.",do:"Ask for one detective question after each AI chat."},
+  zh:{t:"背景雷达 + AI 侦探",boss:"迷雾",quest:"提问前先想：AI 需要多少背景？得到答案后用 5 个侦探问题审问它（真的吗？谁说的？说得通吗？漏了什么？我敢打赌吗？）。",loot:"一套能审问任何答案的 5 问检查法。",tip:"打 Boss 提示：答不出的那个侦探问题，就是该去查证的地方。",use:"让 AI 讲你最爱故事里的一个神话，分成：真神话 / 作者编的 / AI 编的。",par:"孩子拿到第一个答案就信，错了才抱怨。",do:"每次聊完请孩子说出一个侦探问题。"}},
+ {id:"U2",w:"B",st:"ready",
+  en:{t:"Prompt Builder",boss:"The Vague Wish",quest:"Write the same request twice: lazy vs. Goal + Background + Format. Compare.",loot:"The 3-part prompt: goal, background, format.",tip:"Boss tip: a wish with no details gets a random gift.",use:"Ask for a practice plan for something you do (sport, instrument, hobby).",par:"Kids type one short line and get a generic answer.",do:"Ask them to show the two versions side by side."},
+  zh:{t:"提示词搭建师",boss:"含糊的愿望",quest:"同一个请求写两遍：随便写 vs. 目标 + 背景 + 格式。比较结果。",loot:"提示词三件套：目标、背景、格式。",tip:"打 Boss 提示：愿望没细节，得到的就是随机礼物。",use:"让 AI 给你的爱好（运动、乐器等）写一份练习计划。",par:"孩子只打一行字，得到泛泛的答案。",do:"请孩子把两版结果并排给你看。"}},
+ {id:"U3",w:"B",st:"ready",
+  en:{t:"Task Slicer",boss:"The Giant Blob",quest:"Take one big task. Cut it into 3–5 steps. Do step 1 only.",loot:"A way to start anything big.",tip:"Boss tip: a blob can't be beaten, but slices can.",use:"Slice a school project or a performance piece.",par:"Big tasks freeze kids or get dumped on AI whole.",do:"Ask 'What is step 1?' only."},
+  zh:{t:"任务切片师",boss:"巨型一坨",quest:"拿一个大任务，切成 3–5 步，只做第 1 步。",loot:"任何大任务都能开头的方法。",tip:"打 Boss 提示：一整坨打不赢，切片就能打赢。",use:"切分一个学校项目或一首要表演的曲子。",par:"大任务会让孩子卡住，或整个丢给 AI。",do:"只问'第一步是什么？'"}},
+ {id:"U4",w:"B",st:"ready",
+  en:{t:"Project Architect + Plan Before You Prompt",boss:"The Tangled Project",quest:"Before opening AI, fill a one-page plan: goal, parts, tools, how I'll know it's done.",loot:"A project plan you made yourself, before AI.",tip:"Boss tip: plan first, then ask. AI helps your plan, it doesn't replace it.",use:"Plan a rock collection catalog, a mini book, or a game.",par:"Kids jump into tools without a plan.",do:"Ask to see the plan before the build."},
+  zh:{t:"项目建筑师 + 先计划再提问",boss:"缠成一团的项目",quest:"打开 AI 之前，先填一页纸：目标、部分、工具、怎样算完成。",loot:"一份在用 AI 之前自己写的计划。",tip:"打 Boss 提示：先计划再问。AI 帮你的计划，不替你做计划。",use:"为收集（如石头）目录、小书或游戏做计划。",par:"孩子不做计划就直接上工具。",do:"开工前先看计划。"}},
+ {id:"U5",w:"C",st:"ready",
+  en:{t:"Learning Compass",boss:"The Stuck Monster",quest:"When stuck, ask: where exactly am I stuck? Plan → Check → Adjust → Reflect.",loot:"A way to get unstuck without giving up or just asking for the answer.",tip:"Boss tip: name the stuck spot and half the monster is gone.",use:"A practice log for a piece you play, or a sports skill.",par:"Kids say 'I can't' or ask AI for the answer.",do:"Ask 'Which step is it stuck on?'"},
+  zh:{t:"学习指南针",boss:"卡壳怪",quest:"卡住时先问：我到底卡在哪一步？计划→检查→调整→反思。",loot:"不放弃、也不直接要答案的脱困法。",tip:"打 Boss 提示：说清楚卡在哪，怪就打掉一半。",use:"练琴日志或某项运动技能的记录。",par:"孩子说'我不会'，或直接向 AI 要答案。",do:"问'卡在哪一步？'"}},
+ {id:"U6",w:"C",st:"ready",
+  en:{t:"Fact Triangulation",boss:"The Echo Twins",quest:"Check a claim with 2 independent sources. Are they really independent, or copying each other?",loot:"A way to check things you don't already know.",tip:"Boss tip: two sources that copy each other count as one.",use:"Identify a rock: AI guess vs. field guide vs. local geology page.",par:"Kids only check what they already understand.",do:"Ask 'How do you know these two are independent?'"},
+  zh:{t:"事实三角验证",boss:"回声双胞胎",quest:"用 2 个独立来源核实一个说法。它们真独立，还是互相抄？",loot:"核实自己不懂的东西的方法。",tip:"打 Boss 提示：互相抄的两个来源只算一个。",use:"鉴定石头：AI 猜测 vs. 图鉴 vs. 本地地质资料。",par:"孩子只核实自己已经懂的部分。",do:"问'你怎么知道这两个来源是独立的？'"}},
+ {id:"U7",w:"C",st:"new",
+  en:{t:"Question Coach",boss:"The Answer Machine",quest:"Tell AI: 'Ask me questions, don't give answers.' Read a chapter, answer with 4F (Fact, Feeling, Finding, Future), then climb the question ladder from remember to create.",loot:"AI becomes a coach that asks, not a vending machine that tells.",tip:"Boss tip: if you only receive answers, your brain is on pause.",use:"Talk through a chapter of your favorite novel; design your own character or cabin.",par:"This is the book's core idea: active, not passive, learning.",do:"Ask 'What did the AI ask you that was hard?'"},
+  zh:{t:"提问教练",boss:"答案贩卖机",quest:"告诉 AI：'你只问我问题，不要给答案。'读一章书，用 4F（事实、感受、发现、未来）回答，再沿着问题阶梯从记住爬到创造。",loot:"AI 变成会提问的教练，而不是自动贩卖答案的机器。",tip:"打 Boss 提示：只接收答案，大脑就在暂停。",use:"和 AI 聊你爱的小说中的一章；设计自己的角色或小屋。",par:"这是书的核心：主动学习而不是被动学习。",do:"问'AI 问了你什么难的问题？'"}},
+ {id:"U8",w:"D",st:"new",
+  en:{t:"Make It Stick",boss:"The Forgetting Dragon",quest:"Make a spaced-review schedule for one thing to remember, plus one SMART goal for the week.",loot:"A schedule that beats forgetting, and a goal you can measure.",tip:"Boss tip: the dragon eats what you don't revisit. Come back on day 1, 3, 7.",use:"Memorize a piece of music, a spelling list, or a serve success rate.",par:"Kids cram or never review.",do:"Check the schedule, not the result."},
+  zh:{t:"记牢它",boss:"遗忘之龙",quest:"为一件要记住的事做间隔复习表，再设一个本周 SMART 目标。",loot:"一张对抗遗忘的复习表，和一个能量化的目标。",tip:"打 Boss 提示：龙会吃掉你不回头看的东西。第 1、3、7 天回来看。",use:"背一首曲子、一份单词表，或记录发球成功率。",par:"孩子要么临时抱佛脚，要么从不复习。",do:"检查复习表，而不是成绩。"}},
+ {id:"U9",w:"D",st:"new",
+  en:{t:"Own It",boss:"The Borrowed Crown",quest:"Make one small real thing. Write an 'AI Help Note' for your parent: what AI did, what you did.",loot:"A work you can be proud of, and honest credit.",tip:"Boss tip: saying how AI helped makes your work stronger, not weaker.",use:"A rock catalog, a short story, a comic.",par:"Kids hide AI use or let AI do it all. The note is private to the family, not public.",do:"Praise the honesty before the quality."},
+  zh:{t:"这是我的",boss:"借来的王冠",quest:"做一个真实的小作品，给家长写一份'AI 帮助说明'：AI 做了什么，你做了什么。",loot:"一个能骄傲的作品，和诚实的署名。",tip:"打 Boss 提示：说清 AI 帮了什么，作品更有力量。",use:"石头目录、短故事、漫画。",par:"孩子要么隐瞒用了 AI，要么全交给 AI。说明只给家人看，不公开。",do:"先夸诚实，再谈质量。"}},
+ {id:"U10",w:"E",st:"exp",
+  en:{t:"Workflow Designer",boss:"The Runaway Robot",quest:"Connect two tools into a tiny automation (when this happens, do that). Use a test account.",loot:"Trigger → action thinking.",tip:"Boss tip: test accounts and read-only first.",use:"A reminder for practice time.",par:"Never connect real accounts. Never paste passwords.",do:"Be in the room for setup."},
+  zh:{t:"工作流设计师",boss:"失控机器人",quest:"把两个工具连成一个小自动化（发生这个就做那个）。用测试账号。",loot:"触发→动作的思维。",tip:"打 Boss 提示：先用测试账号和只读权限。",use:"练琴时间提醒。",par:"不要连真实账号，不要粘贴密码。",do:"设置时在场。"}},
+ {id:"U11",w:"E",st:"exp",
+  en:{t:"Team Manager Mindset",boss:"The Unchecked Team",quest:"Design a small AI team: who does what, how will I check their work?",loot:"From doer to manager.",tip:"Boss tip: who checks the checker? You do.",use:"Run a family trivia night with an AI team.",par:"Experimental for this age.",do:"Ask how they verify, not what they built."},
+  zh:{t:"团队经理思维",boss:"没人验收的团队",quest:"设计一个小 AI 团队：谁负责什么，我怎么验收？",loot:"从执行者到管理者。",tip:"打 Boss 提示：谁检查检查者？你。",use:"用 AI 团队办一次家庭问答夜。",par:"这个年龄段仍属实验性。",do:"问他怎么验收，而不是做了什么。"}},
+ {id:"U12",w:"E",st:"exp",
+  en:{t:"Fairness Check",boss:"The Unfair Mirror",quest:"Find an AI example. Is it fair to different kinds of people? One-off mistake or a pattern?",loot:"An eye for bias.",tip:"Boss tip: a pattern is different from a slip.",use:"Ask AI to describe 'a scientist' or 'a musician' five times. Who shows up?",par:"Be ready for tricky talks.",do:"Listen first."},
+  zh:{t:"公平检查员",boss:"不公平的镜子",quest:"找一个 AI 的例子：它对不同的人公平吗？是偶然出错，还是有规律？",loot:"发现偏见的眼睛。",tip:"打 Boss 提示：规律和失误不是一回事。",use:"让 AI 描述五次'一位科学家'或'一位音乐家'，看出现的都是谁。",par:"可能会谈到难的话题。",do:"先听，再讲。"}}
+];
+const T = {
+ en:{h1:"AI Quest Map",pk:"🎮 Kid view",pp:"👪 Parent view",
+  intro:{kid:"<b>Welcome, Hero.</b> You will beat 13 bosses and learn to use AI <i>and</i> make your brain stronger. Open a level, do the Quest, read the Field Guide, then use it in your own life. Tick the box when the boss is down.",
+         parent:"<b>The one-minute picture.</b> Two goals together: your child learns to <i>use</i> AI well, and uses AI to make <i>learning itself</i> stronger. 13 levels in 5 worlds, each ending in a 'boss' (a typical mistake). Each level = Do → Know (one page) → Use in a hobby → 10–15 min parent review. Your role: answer questions, run the review, don't take over."},
+  xp:(n,t)=>`${n} / ${t} bosses defeated`,
+  q:"Quest",loot:"Loot",tip:"Tip",use:"Use it in real life",par:"Parent: what's the worry",pdo:"Parent: what to do",boss:"Boss",
+  pilot:"START HERE",ready:"Do ready",new:"New",exp:"Experimental",
+  defeat:"Boss defeated!",
+  fh:"👑 Final Boss · The Mirror of You",fbk:"Collect your best tools into one page: My Learning Manual (what I'm good at, what's hard, which tool I use when). It's big, and it's yours.",
+  fbp:"Capstone is intentionally heavy. A child can do it in pieces across weeks. If it turns into a chore, shrink it to a single page.",
+  fl:"Final boss defeated",
+  note:"<b>Honest note:</b> this program draws on the ideas in a Chinese book on AI and family education, plus Anthropic's AI Fluency framework. The book's '10x' claim is marketing, not a controlled study. Treat this as a well-reasoned practice, not a proven treatment. Progress is saved only in your browser. Make your own copy to keep your child's data private. Knowledge topics across grades: <a href='https://github.com/ezcat207/kid-knowledge-atlas'>kid-knowledge-atlas</a>. Never share your child's name, school, or photos with AI."},
+ zh:{h1:"AI 闯关地图",pk:"🎮 孩子视角",pp:"👪 家长视角",
+  intro:{kid:"<b>欢迎，勇士！</b>你要打败 13 个 Boss，学会用 AI，也让自己的大脑变得更强。打开一关，做任务，读一页攻略，再用到自己的生活里。Boss 倒下就打勾。",
+         parent:"<b>一分钟看懂全局。</b>两个目标并重：让孩子<i>会用</i> AI，也用 AI 让<i>学习本身</i>变强。5 个世界共 13 关，每关最后是一个'Boss'（一种典型错误）。每关 = 做 → 读（一页纸）→ 用到爱好里 → 家长 10–15 分钟复盘。你的角色：答疑、做复盘、不要代劳。"},
+  xp:(n,t)=>`已打败 ${n} / ${t} 个 Boss`,
+  q:"任务",loot:"战利品",tip:"攻略",use:"用到真实生活",par:"家长：担心什么",pdo:"家长：怎么做",boss:"Boss",
+  pilot:"从这里开始",ready:"练习已备",new:"新写",exp:"实验性",
+  defeat:"Boss 已击败！",
+  fh:"👑 终极 Boss · 你自己的镜子",fbk:"把你最好用的工具收进一页纸：《我的学习说明书》（我擅长什么、难在哪、什么时候用哪个工具）。这一关很大，但它属于你。",
+  fbp:"终极关故意设得比较重。可以拆成几周完成。如果变成负担，就缩成一页。",
+  fl:"终极 Boss 已击败",
+  note:"<b>坦白说明：</b>本方案借用了一本关于 AI 家庭教育的中文书的思路，以及 Anthropic 的 AI Fluency 框架。书里'10 倍提升'是营销说法，不是对照实验的结论。请把它当作有道理的实践，而不是已被证明的疗法。进度只保存在你的浏览器里；请自己建副本，保护孩子的数据。各年级知识点参考：<a href='https://github.com/ezcat207/kid-knowledge-atlas'>kid-knowledge-atlas</a>。不要把孩子的姓名、学校、照片告诉 AI。"}
+};
+// ---------- STATE ----------
+let lang="en", pov="kid", done={};
+try{done=JSON.parse(localStorage.getItem("aiquest")||"{}")}catch(e){}
+const save=()=>{try{localStorage.setItem("aiquest",JSON.stringify(done))}catch(e){}};
+const $=s=>document.querySelector(s);
+function render(){
+  const t=T[lang];
+  document.documentElement.dataset.pov=pov;
+  document.documentElement.lang=lang;
+  $("#h1").textContent=t.h1; $("#pk").textContent=t.pk; $("#pp").textContent=t.pp;
+  document.querySelectorAll("[data-pov]").forEach(b=>b.classList.toggle("on",b.dataset.pov===pov));
+  document.querySelectorAll("[data-lang]").forEach(b=>b.classList.toggle("on",b.dataset.lang===lang));
+  $("#intro").innerHTML=t.intro[pov];
+  let html="",cur="";
+  U.forEach(u=>{
+    if(u.w!==cur){cur=u.w;const W=WORLDS[u.w];
+      if(html)html+="</div>";
+      html+=`<div class="world" style="--wc:${W.c}"><h2 style="color:${W.c}">${W[lang]}</h2><span>${W.sub[lang]}</span></div><div class="path" style="--wc:${W.c}">`;}
+    const c=u[lang],W=WORLDS[u.w],d=done[u.id];
+    html+=`<details class="lvl ${d?"done":""}" style="--wc:${W.c}" ${u.pilot?"open":""}>
+      <summary><span class="id">${u.id}</span><span class="title">${c.t}</span>
+      ${u.pilot?`<span class="tag ready">${t.pilot}</span>`:""}
+      <span class="tag ${u.st}">${t[u.st]}</span>
+      <span class="boss">⚔ ${c.boss}</span></summary>
+      <div class="body">
+        <div class="only-kid"><div class="row"><b>${t.q}</b>${c.quest}</div>
+          <div class="row"><b>${t.loot}</b>${c.loot}</div>
+          <div class="row bossrow"><b>${t.boss}</b>${c.tip}</div></div>
+        <div class="row"><b>${t.use}</b>${c.use}</div>
+        <div class="only-parent"><div class="row"><b>${t.par}</b>${c.par}</div>
+          <div class="row"><b>${t.pdo}</b>${c.do}</div>
+          <div class="row"><b>${t.q}</b>${c.quest}</div></div>
+        <label class="def"><input type="checkbox" data-id="${u.id}" ${d?"checked":""}> ${t.defeat}</label>
+      </div></details>`;
+  });
+  $("#map").innerHTML=html+"</div>";
+  const n=Object.keys(done).filter(k=>done[k]&&k!=="final").length;
+  $("#xpbar").style.width=(100*(n+(done.final?1:0))/(U.length+1))+"%";
+  $("#xptext").textContent=t.xp(n,U.length);
+  $("#fh").textContent=t.fh;
+  $("#fb").innerHTML=`<p>${t.fbk}</p><p class="only-parent" style="color:var(--mute)">${t.fbp}</p>`;
+  $("#fl").textContent=t.fl; $("#fc").checked=!!done.final;
+  $("#note").innerHTML=t.note;
+  document.querySelectorAll("input[data-id]").forEach(i=>i.onchange=()=>{done[i.dataset.id]=i.checked;save();render()});
+}
+document.querySelectorAll("[data-pov]").forEach(b=>b.onclick=()=>{pov=b.dataset.pov;render()});
+document.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{lang=b.dataset.lang;render()});
+$("#fc").onchange=e=>{done.final=e.target.checked;save();render()};
+render();
+</script>
+</body>
+</html>
